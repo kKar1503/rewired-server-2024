@@ -106,6 +106,7 @@ func GateActive(gateID uint16) {
 		// Since it took more than allowance frame, it means that it was blocked by something, such as a person
 		// 1. If there is no last block, we place the last blocked
 		if doorState.LastBlocked.Gate == LastBlockedGateNone {
+			slog.Info("inner last blocked", "LastActive", doorState.InnerGateState.LastActive.String())
 			doorState.LastBlocked.Gate = LastBlockedGateInner
 			doorState.LastBlocked.Start = doorState.InnerGateState.LastActive
 			doorState.LastBlocked.End = &now
@@ -115,6 +116,7 @@ func GateActive(gateID uint16) {
 
 		// 2. If there is last block and the last block is the same
 		if doorState.LastBlocked.Gate == LastBlockedGateInner {
+			slog.Info("re-register inner gate as block", "LastActive", doorState.InnerGateState.LastActive.String())
 			// We will just update the last block timing, since this mean the object has not yet passed the door
 			doorState.LastBlocked.Start = doorState.InnerGateState.LastActive
 			doorState.LastBlocked.End = &now
@@ -122,6 +124,12 @@ func GateActive(gateID uint16) {
 			return
 		}
 
+		slog.Info("from out to inner",
+			"LastBlockedStart",
+			doorState.LastBlocked.Start.String(),
+			"LastBlockedEnd",
+			doorState.LastBlocked.End.String(),
+		)
 		// 3. If there is last block and the last block is different
 		// Last block is different, this means that potentially the user has passed the door, this does not straight away
 		// mean that the user has passed, because that the last passed could've been very long ago
@@ -132,14 +140,33 @@ func GateActive(gateID uint16) {
 			// but rather a new object is now passing from the other end.
 			// This case we'll replace the last block with this new block, pending to wait for the other side get passed within
 			// the PASS_FRAME.
+			slog.Info(
+				"from outer to inner longer than, do not consider pass",
+				"LastActive",
+				doorState.InnerGateState.LastActive.String(),
+				"LastBlockedStart",
+				doorState.LastBlocked.Start.String(),
+				"LastBlockedEnd",
+				doorState.LastBlocked.End.String(),
+			)
 			doorState.LastBlocked.Gate = LastBlockedGateInner
 			doorState.LastBlocked.Start = doorState.InnerGateState.LastActive
 			doorState.LastBlocked.End = &now
 			doorState.InnerGateState.LastActive = &now
+			return
 		}
 
 		// 3b. Doesn't pass the PASS_FRAME, this means that the object did pass through the whole door within the
 		// PASS_FRAME, this way we can safely assume that they cross this direction, from outer to inner.
+		slog.Info(
+			"valid pass",
+			"LastActive",
+			doorState.InnerGateState.LastActive.String(),
+			"LastBlockedStart",
+			doorState.LastBlocked.Start.String(),
+			"LastBlockedEnd",
+			doorState.LastBlocked.End.String(),
+		)
 		doorState.LastBlocked.Start = nil
 		doorState.LastBlocked.End = nil
 		doorState.LastBlocked.Gate = LastBlockedGateNone
@@ -159,9 +186,12 @@ func GateActive(gateID uint16) {
 			if err := tx.Where(&db.RoomPopulation{RoomID: doorState.OuterRoomID}).First(outerRoomPopulation).Error; err != nil {
 				return err
 			}
-			outerRoomPopulation.Population -= 1
-			if err := tx.Save(outerRoomPopulation).Error; err != nil {
-				return err
+			if outerRoomPopulation.Population > 0 {
+				// don't decrement when the number is 0
+				outerRoomPopulation.Population -= 1
+				if err := tx.Save(outerRoomPopulation).Error; err != nil {
+					return err
+				}
 			}
 			return nil
 		})
@@ -190,6 +220,7 @@ func GateActive(gateID uint16) {
 		// Since it took more than allowance frame, it means that it was blocked by something, such as a person
 		// 1. If there is no last block, we place the last blocked
 		if doorState.LastBlocked.Gate == LastBlockedGateNone {
+			slog.Info("outer last blocked", "LastActive", doorState.OuterGateState.LastActive.String())
 			doorState.LastBlocked.Gate = LastBlockedGateOuter
 			doorState.LastBlocked.Start = doorState.OuterGateState.LastActive
 			doorState.LastBlocked.End = &now
@@ -199,6 +230,7 @@ func GateActive(gateID uint16) {
 
 		// 2. If there is last block and the last block is the same
 		if doorState.LastBlocked.Gate == LastBlockedGateOuter {
+			slog.Info("re-register outer gate as block", "LastActive", doorState.OuterGateState.LastActive.String())
 			// We will just update the last block timing, since this mean the object has not yet passed the door
 			doorState.LastBlocked.Start = doorState.OuterGateState.LastActive
 			doorState.LastBlocked.End = &now
@@ -206,6 +238,12 @@ func GateActive(gateID uint16) {
 			return
 		}
 
+		slog.Info("from inner to outer",
+			"LastBlockedStart",
+			doorState.LastBlocked.Start.String(),
+			"LastBlockedEnd",
+			doorState.LastBlocked.End.String(),
+		)
 		// 3. If there is last block and the last block is different
 		// Last block is different, this means that potentially the user has passed the door, this does not straight away
 		// mean that the user has passed, because that the last passed could've been very long ago
@@ -216,14 +254,33 @@ func GateActive(gateID uint16) {
 			// but rather a new object is now passing from the other end.
 			// This case we'll replace the last block with this new block, pending to wait for the other side get passed within
 			// the PASS_FRAME.
+			slog.Info(
+				"from inner to outer longer than, do not consider pass",
+				"LastActive",
+				doorState.OuterGateState.LastActive.String(),
+				"LastBlockedStart",
+				doorState.LastBlocked.Start.String(),
+				"LastBlockedEnd",
+				doorState.LastBlocked.End.String(),
+			)
 			doorState.LastBlocked.Gate = LastBlockedGateOuter
 			doorState.LastBlocked.Start = doorState.OuterGateState.LastActive
 			doorState.LastBlocked.End = &now
 			doorState.OuterGateState.LastActive = &now
+			return
 		}
 
 		// 3b. Doesn't pass the PASS_FRAME, this means that the object did pass through the whole door within the
 		// PASS_FRAME, this way we can safely assume that they cross this direction, from inner to outer.
+		slog.Info(
+			"valid pass",
+			"LastActive",
+			doorState.OuterGateState.LastActive.String(),
+			"LastBlockedStart",
+			doorState.LastBlocked.Start.String(),
+			"LastBlockedEnd",
+			doorState.LastBlocked.End.String(),
+		)
 		doorState.LastBlocked.Start = nil
 		doorState.LastBlocked.End = nil
 		doorState.LastBlocked.Gate = LastBlockedGateNone
@@ -243,9 +300,12 @@ func GateActive(gateID uint16) {
 			if err := tx.Where(&db.RoomPopulation{RoomID: doorState.InnerRoomID}).First(innerRoomPopulation).Error; err != nil {
 				return err
 			}
-			innerRoomPopulation.Population -= 1
-			if err := tx.Save(innerRoomPopulation).Error; err != nil {
-				return err
+			if innerRoomPopulation.Population > 0 {
+				// don't decrement when the number is 0
+				innerRoomPopulation.Population -= 1
+				if err := tx.Save(innerRoomPopulation).Error; err != nil {
+					return err
+				}
 			}
 			return nil
 		})
