@@ -1,0 +1,19 @@
+# personal deployment stuff
+Makefile
+inventory-dev
+playbook-service.yml
+
+# db file
+rewired.db
+
+# air toml
+.air.toml
+
+# tmp dir
+tmp
+
+# build dir 
+.build
+
+# test cmd
+cmd/test/*
